@@ -27,6 +27,7 @@
 * [Database Architecture](#database-architecture)
 * [Database Indexing](#database-indexing)
 * [n8n Integration](#n8n-integration)
+* [Local Deployment](#local-deployment)
 * [Technology Stack](#technology-stack)
 * [Project Structure](#project-structure)
 * [Security](#security)
@@ -328,6 +329,121 @@ Conversation       Memory Retrieval
 ```
 
 The architecture separates responsibilities so that the memory subsystem can operate independently from the messaging and orchestration layers.
+
+## Local Deployment Architecture
+
+The AI agent workflow was developed and executed using a **self-hosted n8n instance running inside Docker**.
+
+Because the n8n server was running locally, an external tunneling service was required to make the webhook endpoint accessible to external services such as WhatsApp.
+
+The local deployment architecture is:
+
+```text
+┌──────────────────────┐
+│       WhatsApp       │
+│    User Messages     │
+└──────────┬───────────┘
+           │
+           │ HTTPS Webhook
+           ▼
+┌──────────────────────┐
+│        ngrok         │
+│   Public HTTPS URL   │
+└──────────┬───────────┘
+           │
+           │ Tunnel
+           ▼
+┌──────────────────────┐
+│       Docker         │
+│  ┌────────────────┐  │
+│  │      n8n       │  │
+│  │ Self-Hosted    │  │
+│  └───────┬────────┘  │
+└──────────┼───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│    AI Agent Workflow │
+│                      │
+│ Memory Retrieval     │
+│ Conversation Context │
+│ AI Processing        │
+│ Memory Extraction    │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│    FastAPI Memory    │
+│        API           │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│       SQLite         │
+│ Conversations +      │
+│ Structured Memories  │
+└──────────────────────┘
+```
+
+### Deployment Components
+
+The local development environment consists of:
+
+* **Docker** — Containerizes and runs the self-hosted n8n instance.
+* **n8n** — Provides workflow orchestration for the AI agent.
+* **ngrok** — Creates a public HTTPS tunnel to the locally running n8n webhook endpoint.
+* **FastAPI** — Provides the memory management API.
+* **SQLite** — Provides persistent storage for conversations and structured memories.
+
+This architecture allows the complete AI-agent system to be developed and tested locally while still supporting external webhook-based services.
+
+## Recommended Architecture Summary
+
+The project therefore combines several layers into a single AI-agent memory architecture:
+
+```text
+┌───────────────────────────────────────┐
+│              User                     │
+│             WhatsApp                  │
+└──────────────────┬────────────────────┘
+                   │
+                   ▼
+             ┌───────────┐
+             │   ngrok   │
+             │ HTTPS     │
+             │ Tunnel    │
+             └─────┬─────┘
+                   │
+                   ▼
+        ┌─────────────────────┐
+        │       Docker        │
+        │                     │
+        │        n8n          │
+        │ Workflow Engine     │
+        └──────────┬──────────┘
+                   │
+          ┌────────┴────────┐
+          ▼                 ▼
+ Conversation          Memory API
+   History             FastAPI
+                            │
+                            ▼
+                         SQLite
+                            │
+                            ▼
+                    Structured Memory
+                            │
+                            ▼
+                   Semantic Retrieval
+                            │
+                            ▼
+                        AI Agent
+                            │
+                            ▼
+                       Response
+```
+
+The combination of **Docker, n8n, ngrok, FastAPI, SQLite, embeddings, and an AI agent** forms the complete local development architecture of the project.
 
 ---
 
@@ -772,37 +888,189 @@ This is particularly important when retrieving memories or conversation history 
 
 # n8n Integration
 
-n8n is used as the workflow orchestration layer connecting the conversational interface, AI agent, memory system, and external services.
+n8n is used as the workflow orchestration layer of the AI agent.
+
+The project uses a **self-hosted n8n instance running locally inside Docker** rather than relying on the hosted n8n cloud service.
+
+The workflow connects the messaging interface, conversation context, AI agent, memory subsystem, and external services.
 
 The high-level workflow is:
 
 ```text
 WhatsApp
     ↓
-Receive User Message
+Public Webhook
     ↓
-Conversation Context
+n8n
+    ↓
+Conversation History
     ↓
 Memory Retrieval
     ↓
 AI Agent
     ↓
-Response
+Generate Response
     ↓
 Memory Extraction
     ↓
-Validation
+Memory Validation
     ↓
 Memory CRUD
+    ↓
+SQLite
 ```
 
-The workflow keeps orchestration logic outside the FastAPI memory service.
+## Docker-Based n8n
 
-The repository contains a sanitized workflow definition:
+n8n runs inside a Docker container, providing an isolated and reproducible environment for the workflow engine.
+
+Docker is used to:
+
+* Run n8n locally
+* Isolate the workflow environment
+* Manage the n8n runtime
+* Persist n8n data through Docker volumes
+* Simplify starting and stopping the self-hosted service
+
+The local n8n instance is accessible through a mapped host port.
+
+## ngrok Tunneling
+
+Since the n8n server runs on the local machine, its webhook endpoints are not directly accessible from the public internet.
+
+**ngrok** is used to create a secure public HTTPS tunnel from the internet to the locally running n8n service.
+
+The communication path is:
+
+```text
+External Service
+      ↓
+Public HTTPS URL
+      ↓
+    ngrok
+      ↓
+Local Host
+      ↓
+Docker
+      ↓
+n8n Container
+      ↓
+Webhook Workflow
+```
+
+This allows external services such as WhatsApp to send webhook requests to the locally hosted n8n workflow during development and testing.
+
+The tunnel also provides an HTTPS endpoint that can be configured as the webhook callback URL required by external messaging services.
+
+## Local Development Flow
+
+The complete local development environment can therefore be represented as:
+
+```text
+                 INTERNET
+                    │
+                    ▼
+              ┌───────────┐
+              │  WhatsApp │
+              └─────┬─────┘
+                    │
+                    ▼
+              ┌───────────┐
+              │   ngrok   │
+              └─────┬─────┘
+                    │
+              HTTPS Tunnel
+                    │
+                    ▼
+        ┌─────────────────────┐
+        │       Docker        │
+        │                     │
+        │  ┌───────────────┐  │
+        │  │      n8n      │  │
+        │  │   Webhooks    │  │
+        │  │  AI Workflow  │  │
+        │  └───────┬───────┘  │
+        └──────────┼──────────┘
+                   │
+                   ▼
+             FastAPI Memory API
+                   │
+                   ▼
+                SQLite
+```
+
+The repository contains a sanitized n8n workflow definition:
 
 ```text
 n8n/memory-agent-workflow.example.json
 ```
+
+---
+
+# Local Deployment
+
+The project was developed using a local/self-hosted architecture.
+
+The primary workflow engine runs inside Docker, while the memory subsystem runs as a local FastAPI service.
+
+```text
+┌───────────────────────────────┐
+│          Local Machine        │
+│                               │
+│  ┌─────────────────────────┐  │
+│  │       Docker            │  │
+│  │                         │  │
+│  │        n8n              │  │
+│  │   Self-Hosted Server    │  │
+│  └───────────┬─────────────┘  │
+│              │                │
+│              ▼                │
+│       FastAPI Memory API      │
+│              │                │
+│              ▼                │
+│           SQLite              │
+│                               │
+└───────────────┬───────────────┘
+                │
+                │ ngrok Tunnel
+                ▼
+          Public HTTPS URL
+                │
+                ▼
+          External Services
+```
+
+This architecture allows the AI agent to operate locally while still receiving external webhook events.
+
+## Why Docker Was Used
+
+Docker provides an isolated environment for the n8n server and simplifies local deployment.
+
+It also allows n8n to maintain its own runtime environment independently from the host operating system.
+
+## Why ngrok Was Used
+
+The local n8n server is normally accessible only from the local machine.
+
+External services cannot directly access a private localhost address.
+
+ngrok solves this during development by providing:
+
+```text
+External Internet
+       ↓
+Public HTTPS Endpoint
+       ↓
+ngrok Tunnel
+       ↓
+localhost
+       ↓
+Docker
+       ↓
+n8n
+```
+
+This makes it possible to test webhook-driven AI-agent workflows with external platforms while keeping the core development environment local.
 
 ---
 
@@ -846,6 +1114,42 @@ Used for numerical and vector operations, including similarity calculations.
 
 Workflow automation and orchestration platform connecting the AI agent, messaging system, memory API, and other services.
 
+## Containerization
+
+### Docker
+
+Docker is used to run the n8n workflow engine as a self-hosted container.
+
+It provides:
+
+* Local n8n deployment
+* Environment isolation
+* Persistent workflow data
+* Consistent runtime configuration
+* Easier service management
+
+## Networking and Tunneling
+
+### ngrok
+
+ngrok is used to expose the locally hosted n8n webhook endpoint through a public HTTPS URL.
+
+It provides the bridge between external webhook providers and the locally running Docker-based n8n instance.
+
+The role of ngrok in the architecture is:
+
+```text
+Public Webhook
+      ↓
+    ngrok
+      ↓
+Local n8n
+      ↓
+Docker Container
+```
+
+ngrok is primarily a **development and testing component** in this project rather than part of the core memory engine.
+
 ## WhatsApp
 
 Conversational interface used for user interaction with the AI agent.
@@ -853,6 +1157,24 @@ Conversational interface used for user interaction with the AI agent.
 ## Git and GitHub
 
 Used for source-code management, version control, documentation, and project collaboration.
+
+## Technology Stack Summary
+
+The complete technology stack can be organized as:
+
+| Layer                | Technology   | Purpose                          |
+| --------------------- | ------------ | -------------------------------- |
+| Programming           | Python       | Memory subsystem                 |
+| Backend               | FastAPI      | Memory REST API                  |
+| Validation            | Pydantic     | Data validation                  |
+| Database              | SQLite       | Persistent storage               |
+| Embeddings            | Hugging Face | Semantic representations         |
+| Numerical Processing  | NumPy        | Vector calculations              |
+| Workflow              | n8n          | AI-agent orchestration           |
+| Containerization      | Docker       | Self-hosted n8n runtime          |
+| Tunneling             | ngrok        | Public access to local webhooks  |
+| Messaging             | WhatsApp     | User interaction                 |
+| Version Control       | Git / GitHub | Source control and documentation |
 
 ---
 
@@ -1155,6 +1477,24 @@ without redesigning the core memory layer.
 * API integration
 * AI-agent workflows
 * External service integration
+
+## Containerization and Local Deployment
+
+* Docker
+* Containerized application deployment
+* Self-hosted n8n
+* Docker-based workflow environments
+* Local service management
+* Persistent container data
+
+## Networking and Webhooks
+
+* Webhook architecture
+* HTTPS tunneling
+* ngrok
+* Local-to-public service exposure
+* External webhook integration
+* Development networking
 
 ## Integration Engineering
 
