@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+
+*.db
+*.sqlite
+*.sqlite3
+
+.env
+.env.*
+!.env.example
+
+.vscode/
+.idea/
+
+*.log
