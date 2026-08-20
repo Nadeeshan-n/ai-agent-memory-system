@@ -63,10 +63,17 @@ Instead of treating memory as a collection of unstructured conversation text, th
 * Update time
 
 This architecture enables reliable memory creation, updating, deletion, semantic retrieval, duplicate detection, expiration handling, and controlled memory injection into an AI agent.
-#Workflow_images
-
+# Workflow_images
+## n8n workflow
 ![n8n workflow](images/1.png)
+## fastAPI
 ![fastAPI](images/2.png)
+## ngroke tunnel
+![ngroke tunnel](images/3.png)
+## whatsapp interface
+![whatsapp interface](images/4.png)
+## runnig workflow
+![runnig workflow ](images/5.png)
 
 
 ---
