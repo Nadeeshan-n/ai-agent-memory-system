@@ -63,6 +63,11 @@ Instead of treating memory as a collection of unstructured conversation text, th
 * Update time
 
 This architecture enables reliable memory creation, updating, deletion, semantic retrieval, duplicate detection, expiration handling, and controlled memory injection into an AI agent.
+#Workflow_images
+
+![n8n workflow](images/1.png)
+![fastAPI](images/2.png)
+
 
 ---
 
